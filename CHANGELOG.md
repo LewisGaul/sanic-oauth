@@ -5,6 +5,14 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.3] - 2023-08-15
+
+### Changed
+
+- Update auth method to pass access token in header rather than URL param
+- Revert partial Sanic v21 support to restore v20 support
+
+
 ## [0.5.2] - 2022-06-12
 
 ### Fixed
