@@ -394,13 +394,14 @@ class OAuth2Client(Client):  # pylint: disable=abstract-method
         url = self._get_url(url)
         params = params or {}
 
-        if self.access_token:
-            params[self.access_token_key] = self.access_token
-
         headers = headers or {
             "Accept": "application/json",
             "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
         }
+
+        if self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
+
         return await self.aiohttp_session.request(
             method, url, params=params, headers=headers, **aio_kwargs
         )
