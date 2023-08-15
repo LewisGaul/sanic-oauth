@@ -47,7 +47,7 @@ async def oauth(request: Request) -> HTTPResponse:
         use_after_auth_default_redirect = (
             request.app.config.OAUTH_AFTER_AUTH_DEFAULT_REDIRECT
         )
-    client = request.app.ctx.oauth_factory(provider=provider)
+    client = request.app.oauth_factory(provider=provider)
     if "code" not in request.args:
         return redirect(
             client.get_authorize_url(scope=use_scope, redirect_uri=use_redirect_uri)
@@ -79,7 +79,7 @@ async def fetch_user_info(
         oauth_provider = request.ctx.session.get("oauth_provider", provider)
         if oauth_provider:
             factory_args["provider"] = provider
-        client = request.app.ctx.oauth_factory(**factory_args)
+        client = request.app.oauth_factory(**factory_args)
         try:
             user, _info = await client.user_info()
         except (KeyError, HTTPBadRequest) as exc:
@@ -158,11 +158,11 @@ def login_required(
 
 @oauth_blueprint.listener("after_server_start")
 async def configuration_check(sanic_app: Sanic, _loop) -> None:
-    if not hasattr(sanic_app.ctx, "async_session"):
+    if not hasattr(sanic_app, "async_session"):
         raise OAuthConfigurationException(
             "You should configure async_session with aiohttp.ClientSession"
         )
-    if not hasattr(sanic_app.ctx, "session_interface"):
+    if not hasattr(sanic_app, "session_interface"):
         raise OAuthConfigurationException(
             "You should configure session_interface from sanic-session"
         )
@@ -303,11 +303,11 @@ async def create_oauth_factory(sanic_app: Sanic, _loop) -> None:
             use_provider_class = provider_class
             use_client_setting = client_setting
         result = use_provider_class(
-            sanic_app.ctx.async_session, access_token=access_token, **use_client_setting
+            sanic_app.async_session, access_token=access_token, **use_client_setting
         )
         return result
 
-    sanic_app.ctx.oauth_factory = oauth_factory
+    sanic_app.oauth_factory = oauth_factory
     sanic_app.config.OAUTH_REDIRECT_URI = oauth_redirect_uri
     sanic_app.config.OAUTH_SCOPE = oauth_scope
     sanic_app.config.OAUTH_ENDPOINT_PATH = oauth_endpoint_path
