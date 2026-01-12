@@ -162,9 +162,10 @@ async def configuration_check(sanic_app: Sanic) -> None:
         raise OAuthConfigurationException(
             "You should configure async_session with aiohttp.ClientSession"
         )
-    if not hasattr(sanic_app.ctx, "session_interface"):
+    # sanic_sessions stores session interface in extensions
+    if not hasattr(sanic_app.ctx, "session") and not hasattr(sanic_app.ctx, "session_interface"):
         raise OAuthConfigurationException(
-            "You should configure session_interface from sanic-session"
+            "You should configure session_interface from sanic-sessions"
         )
 
 
