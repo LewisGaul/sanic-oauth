@@ -42,12 +42,12 @@ async def oauth(request: Request) -> HTTPResponse:
         use_redirect_uri = provider_conf["REDIRECT_URI"]
         use_after_auth_default_redirect = provider_conf["AFTER_AUTH_DEFAULT_REDIRECT"]
     else:
-        use_scope = request.app.config.OAUTH_SCOPE
-        use_redirect_uri = request.app.config.OAUTH_REDIRECT_URI
-        use_after_auth_default_redirect = (
-            request.app.config.OAUTH_AFTER_AUTH_DEFAULT_REDIRECT
+        use_scope = request.app.config.get("OAUTH_SCOPE")
+        use_redirect_uri = request.app.config.get("OAUTH_REDIRECT_URI")
+        use_after_auth_default_redirect = request.app.config.get(
+            "OAUTH_AFTER_AUTH_DEFAULT_REDIRECT", "/"
         )
-    client = request.app.oauth_factory(provider=provider)
+    client = request.app.ctx.oauth_factory(provider=provider)
     if "code" not in request.args:
         return redirect(
             client.get_authorize_url(scope=use_scope, redirect_uri=use_redirect_uri)
@@ -79,7 +79,7 @@ async def fetch_user_info(
         oauth_provider = request.ctx.session.get("oauth_provider", provider)
         if oauth_provider:
             factory_args["provider"] = provider
-        client = request.app.oauth_factory(**factory_args)
+        client = request.app.ctx.oauth_factory(**factory_args)
         try:
             user, _info = await client.user_info()
         except (KeyError, HTTPBadRequest) as exc:
@@ -90,7 +90,7 @@ async def fetch_user_info(
             if not local_email_regex.match(user.email):
                 return redirect(oauth_endpoint_path)
 
-        request.ctx.session["user_info"] = user
+        request.ctx.session["user_info"] = user.to_dict()
     return user
 
 
@@ -133,9 +133,9 @@ def login_required(
             oauth_endpoint_path = provider_config.get("ENDPOINT_PATH", None)
             oauth_email_regex = provider_config.get("EMAIL_REGEX", None)
         if not oauth_endpoint_path:
-            oauth_endpoint_path = request.app.config.OAUTH_ENDPOINT_PATH
+            oauth_endpoint_path = request.app.config.get("OAUTH_ENDPOINT_PATH", "/oauth")
         if not oauth_email_regex:
-            oauth_email_regex = request.app.config.OAUTH_EMAIL_REGEX
+            oauth_email_regex = request.app.config.get("OAUTH_EMAIL_REGEX", None)
         # Do core oauth authentication once per session
         if "token" not in request.ctx.session:
             if provider:
@@ -157,14 +157,20 @@ def login_required(
 
 
 @oauth_blueprint.listener("after_server_start")
-async def configuration_check(sanic_app: Sanic, _loop) -> None:
-    if not hasattr(sanic_app, "async_session"):
+async def configuration_check(sanic_app: Sanic) -> None:
+    if not hasattr(sanic_app.ctx, "async_session"):
         raise OAuthConfigurationException(
             "You should configure async_session with aiohttp.ClientSession"
         )
-    if not hasattr(sanic_app, "session_interface"):
+    # sanic_sessions stores session interface in app.ctx.extensions['session']
+    has_session = (
+        hasattr(sanic_app.ctx, "extensions")
+        and isinstance(sanic_app.ctx.extensions, dict)
+        and "session" in sanic_app.ctx.extensions
+    )
+    if not has_session and not hasattr(sanic_app.ctx, "session_interface"):
         raise OAuthConfigurationException(
-            "You should configure session_interface from sanic-session"
+            "You should configure session interface from sanic-sessions"
         )
 
 
@@ -267,7 +273,7 @@ def legacy_oauth_configuration(
 
 
 @oauth_blueprint.listener("after_server_start")
-async def create_oauth_factory(sanic_app: Sanic, _loop) -> None:
+async def create_oauth_factory(sanic_app: Sanic) -> None:
     from .core import Client
 
     sanic_app.config.setdefault("OAUTH_AFTER_AUTH_DEFAULT_REDIRECT", "/")
@@ -303,11 +309,11 @@ async def create_oauth_factory(sanic_app: Sanic, _loop) -> None:
             use_provider_class = provider_class
             use_client_setting = client_setting
         result = use_provider_class(
-            sanic_app.async_session, access_token=access_token, **use_client_setting
+            sanic_app.ctx.async_session, access_token=access_token, **use_client_setting
         )
         return result
 
-    sanic_app.oauth_factory = oauth_factory
+    sanic_app.ctx.oauth_factory = oauth_factory
     sanic_app.config.OAUTH_REDIRECT_URI = oauth_redirect_uri
     sanic_app.config.OAUTH_SCOPE = oauth_scope
     sanic_app.config.OAUTH_ENDPOINT_PATH = oauth_endpoint_path
