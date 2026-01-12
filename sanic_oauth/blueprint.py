@@ -90,7 +90,7 @@ async def fetch_user_info(
             if not local_email_regex.match(user.email):
                 return redirect(oauth_endpoint_path)
 
-        request.ctx.session["user_info"] = user
+        request.ctx.session["user_info"] = user.to_dict()
     return user
 
 

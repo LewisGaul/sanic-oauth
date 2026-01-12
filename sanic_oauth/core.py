@@ -47,6 +47,17 @@ class UserInfo:  # pylint: disable=too-few-public-methods
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    def to_dict(self) -> dict:
+        """Convert UserInfo to a dictionary for JSON serialization."""
+        result = {}
+        for attr in self.default_attrs:
+            result[attr] = getattr(self, attr, "")
+        # Also include any additional attributes that were set
+        for key, value in self.__dict__.items():
+            if key not in result:
+                result[key] = value
+        return result
+
 
 class Signature(abc.ABC):
 
