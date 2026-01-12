@@ -42,10 +42,10 @@ async def oauth(request: Request) -> HTTPResponse:
         use_redirect_uri = provider_conf["REDIRECT_URI"]
         use_after_auth_default_redirect = provider_conf["AFTER_AUTH_DEFAULT_REDIRECT"]
     else:
-        use_scope = request.app.config.OAUTH_SCOPE
-        use_redirect_uri = request.app.config.OAUTH_REDIRECT_URI
-        use_after_auth_default_redirect = (
-            request.app.config.OAUTH_AFTER_AUTH_DEFAULT_REDIRECT
+        use_scope = request.app.config.get("OAUTH_SCOPE")
+        use_redirect_uri = request.app.config.get("OAUTH_REDIRECT_URI")
+        use_after_auth_default_redirect = request.app.config.get(
+            "OAUTH_AFTER_AUTH_DEFAULT_REDIRECT", "/"
         )
     client = request.app.ctx.oauth_factory(provider=provider)
     if "code" not in request.args:
@@ -133,9 +133,9 @@ def login_required(
             oauth_endpoint_path = provider_config.get("ENDPOINT_PATH", None)
             oauth_email_regex = provider_config.get("EMAIL_REGEX", None)
         if not oauth_endpoint_path:
-            oauth_endpoint_path = request.app.config.OAUTH_ENDPOINT_PATH
+            oauth_endpoint_path = request.app.config.get("OAUTH_ENDPOINT_PATH", "/oauth")
         if not oauth_email_regex:
-            oauth_email_regex = request.app.config.OAUTH_EMAIL_REGEX
+            oauth_email_regex = request.app.config.get("OAUTH_EMAIL_REGEX", None)
         # Do core oauth authentication once per session
         if "token" not in request.ctx.session:
             if provider:
@@ -162,10 +162,15 @@ async def configuration_check(sanic_app: Sanic) -> None:
         raise OAuthConfigurationException(
             "You should configure async_session with aiohttp.ClientSession"
         )
-    # sanic_sessions stores session interface in extensions
-    if not hasattr(sanic_app.ctx, "session") and not hasattr(sanic_app.ctx, "session_interface"):
+    # sanic_sessions stores session interface in app.ctx.extensions['session']
+    has_session = (
+        hasattr(sanic_app.ctx, "extensions")
+        and isinstance(sanic_app.ctx.extensions, dict)
+        and "session" in sanic_app.ctx.extensions
+    )
+    if not has_session and not hasattr(sanic_app.ctx, "session_interface"):
         raise OAuthConfigurationException(
-            "You should configure session_interface from sanic-sessions"
+            "You should configure session interface from sanic-sessions"
         )
 
 
